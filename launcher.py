@@ -73,6 +73,9 @@ class Launcher:
 
         if ignores is None:
             ignores = []
+        else:
+            if isinstance(ignores, str):
+                ignores = [ignores]
 
         self.name = name
         self.configurable = configurable
