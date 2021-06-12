@@ -2,6 +2,7 @@ import random
 import string
 import os
 import subprocess
+from typing import Union, Optional, Tuple
 
 __VERSION__ = '0.1.0'
 __all__ = ['Launcher']
@@ -15,18 +16,67 @@ class Hyperparameter:
 
 
 class Launcher:
-    def __init__(self, name, configurable, sync=None, ignores=None, server=None, num_gpus=0, tmp_configs_folder=None,
-                 tmp_root=None, interpreter=None):
+    """
+    Launch a series of experiments against tunable hyperparameters.
+
+    Parameters
+    ----------
+     name : str
+        Name of the model
+     configurable : str
+        The name that is used for `gin.configurable`.
+     sync : Optional[Union[List[str], str]]
+        A list of folders/files to sync in order to execute the script.
+        Default: `None`.
+     ignores : Optional[Union[List[str], str]]
+        Specify what folders/files/patterns to ignore.
+        Default: `None`.
+     server : int
+        Choose which server to perform the experiment.
+        The number depends on `messenger`.
+        Default: `None`.
+     num_gpus : int
+        The number of GPUs required for the experiment.
+        Default: `0`.
+     tmp_configs_folder : str
+        The temporary folder to store all the generated config files.
+        This folder should be in the local machine.
+        Default: `None`.
+     experiment_root : str
+        The temporary folder to execute the experiment from.
+        This folder should be in the remote machine.
+        By default, it will upload the experiment to the
+        `messenger` temp dir.
+        Default: `None`.
+     interpreter : str
+        Path to the Python interpreter used for the experiment.
+        This Python interpreter should be in the remote machine.
+        Default: `None`.
+
+    """
+    def __init__(self,
+                 name: str,
+                 configurable: str,
+                 sync: Optional[Union[Tuple[str, ...], str]] = None,
+                 ignores: Optional[Union[Tuple[str, ...], str]] = None,
+                 server: int = None,
+                 num_gpus: int = 0,
+                 tmp_configs_folder: str = None,
+                 experiment_root: str = None,
+                 interpreter: str = None):
         if sync is None:
             sync = []
         else:
             if isinstance(sync, str):
                 sync = [sync]
 
+        if ignores is None:
+            ignores = []
+
         self.name = name
         self.configurable = configurable
         self.sync = sync
-        self.ignores = ignores
+        self.ignores = list(ignores)
         self.num_gpus = num_gpus
         self.__hyperparameters = {}
         if tmp_configs_folder is None:
@@ -36,8 +86,9 @@ class Launcher:
             os.mkdir(tmp_configs_folder)
 
         self.tmp_folder = tmp_configs_folder
+        self.ignores.append(self.tmp_folder)
         self.server = 0 if server is None else server
-        self.tmp_root = '/tmp/messenger-tmp' if tmp_root is None else tmp_root
+        self.tmp_root = '/tmp/messenger-tmp' if experiment_root is None else experiment_root
         self.interpreter = 'python' if interpreter is None else interpreter
 
     def set_tunable(self, hyperparameter: str):
@@ -76,7 +127,7 @@ class Launcher:
         :param config:
             a config dictionary
         """
-        for k, v in config:
+        for k, v in config.items():
             self.add_hyperparameters(k, v)
 
     def generate_configs(self):
@@ -109,7 +160,7 @@ class Launcher:
 
         return _generate(0, '')
 
-    def launch(self, script: str):
+    def launch(self, script: str, extra_args=None):
         """
         Launches the script based on the given hyperparameters.
 
@@ -156,4 +207,6 @@ class Launcher:
                 cmd.append(f'-G {str(self.num_gpus)}')
 
             cmd += [self.interpreter, script, config_filename]
+            if extra_args is not None:
+                cmd += list(extra_args)
             subprocess.call(cmd)
