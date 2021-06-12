@@ -211,8 +211,9 @@ class Launcher:
                 cmd.append(f'-G {str(self.num_gpus)}')
 
             cmd += ['-L', f'{self.name}-{config_name}']
-            cmd += [self.interpreter, script, config_filename]
+            script_cmd = [self.interpreter, script, config_filename]
             if extra_args is not None:
-                cmd += list(extra_args)
+                script_cmd += list(extra_args)
+            cmd.append(' '.join(script_cmd))
             subprocess.call(cmd)
         rmtree(self.tmp_folder)
