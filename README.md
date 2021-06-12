@@ -52,6 +52,6 @@ If a hyperparameter is supposed to be tuned, indicate they are tunable
 by setting `tunable=True`.
 In this case, the `value` argument should be a list or tuples of values.
 If the main script requires additional arguments, one can pass those arguments to
-`launch.py` and call like `lc.launch('toy.py', sys.argv[2:])`.
+`launch.py` and call like `lc.launch('toy.py', sys.argv[1:])`.
 
 Executing this will queue multiple jobs with multiple configurations that we specify.
