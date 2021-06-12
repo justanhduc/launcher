@@ -206,6 +206,7 @@ class Launcher:
             if self.num_gpus:
                 cmd.append(f'-G {str(self.num_gpus)}')
 
+            cmd += ['-L', f'{self.name}-{config_name}']
             cmd += [self.interpreter, script, config_filename]
             if extra_args is not None:
                 cmd += list(extra_args)
