@@ -3,6 +3,7 @@ import string
 import os
 import subprocess
 from typing import Union, Optional, Tuple
+from shutil import rmtree
 
 __VERSION__ = '0.1.0'
 __all__ = ['Launcher']
@@ -80,7 +81,7 @@ class Launcher:
         self.num_gpus = num_gpus
         self.__hyperparameters = {}
         if tmp_configs_folder is None:
-            tmp_configs_folder = 'tmp'
+            tmp_configs_folder = '__tmp__'
 
         if not os.path.exists(tmp_configs_folder):
             os.mkdir(tmp_configs_folder)
@@ -211,3 +212,4 @@ class Launcher:
             if extra_args is not None:
                 cmd += list(extra_args)
             subprocess.call(cmd)
+        rmtree(self.tmp_folder)
