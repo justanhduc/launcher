@@ -97,8 +97,22 @@ class Launcher:
 
         self.tmp_folder = tmp_configs_folder
         self.ignores.append(self.tmp_folder)
-        self.server = 0 if server is None else server
-        self.tmp_root = '/tmp/messenger-tmp' if experiment_root is None else experiment_root
+        self.server = server
+        if experiment_root is None:
+            if self.server is None:  # work locally
+                self.tmp_root = '/tmp/launcher-tmp'
+                if not os.path.exists(self.tmp_root):
+                    os.mkdir(self.tmp_root)
+            else:
+                self.tmp_root = '/tmp/messenger-tmp'
+        else:
+            self.tmp_root = experiment_root
+            if self.server is None:
+                if not os.path.exists(self.tmp_root):
+                    os.mkdir(self.tmp_root)
+            else:
+                assert os.path.isabs(self.tmp_root), f'Relative experiment root is not allowed. Got {experiment_root}'
+
         self.interpreter = 'python' if interpreter is None else interpreter
         self._skips = defaultdict(_spawn_set)
 
@@ -184,6 +198,22 @@ class Launcher:
 
         return _generate(0, '')
 
+    def _sync(self, files_and_folders: List[str], target: str):
+        if target is None:
+            tmpdir = os.path.join(self.tmp_root, 'tmp-')
+            tmpdir += ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+        else:
+            tmpdir = target
+
+        exclude = [f'--exclude={exclude}' for exclude in self.ignores] if self.ignores else []
+        for to_sync in files_and_folders:
+            cmd = ['rsync', '-uar', to_sync]
+            cmd += exclude
+            cmd += [f'{tmpdir}/']
+            subprocess.call(cmd)  # sync using rsync
+
+        return tmpdir
+
     def launch(self, script: str, extra_args: List[str] = None) -> None:
         """
         Launches the script based on the given hyperparameters.
@@ -221,24 +251,38 @@ class Launcher:
 
             to_sync = list(self.sync)
             to_sync.append(config_file)
-            to_sync = ':'.join(to_sync)
-            cmd = ['ms', '-H', str(self.server), '--sync', to_sync]
-            if self.ignores:
-                exclude = ':'.join(self.ignores)
-                exclude = ['--exclude', f'{exclude}']
-                cmd.extend(exclude)
-
             tmpdir = os.path.join(self.tmp_root, config_name)
             tmpdir += '-'
             tmpdir += ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
-            cmd += ['--sync_dest', tmpdir]
+            if self.server is None:  # work locally
+                working_dir = self._sync(to_sync, tmpdir)
+                cmd = ['ts']
+                current_dir = os.getcwd()
+                os.chdir(working_dir)  # cd here to launch ts inside
+            else:
+                to_sync = ':'.join(to_sync)
+                cmd = ['ms', '-H', str(self.server), '--sync', to_sync]
+                if self.ignores:
+                    exclude = ':'.join(self.ignores)
+                    exclude = ['--exclude', f'{exclude}']
+                    cmd.extend(exclude)
+                cmd += ['--sync_dest', tmpdir]
+
             if self.num_gpus:
-                cmd.append(f'-G {str(self.num_gpus)}')
+                cmd += ['-G', f'{self.num_gpus}']
 
             cmd += ['-L', f'{self.name}-{config_name}']
             script_cmd = [self.interpreter, script, config_filename]
             if extra_args is not None:
                 script_cmd += list(extra_args)
-            cmd.append(' '.join(script_cmd))
+            if cmd[0] == 'ms':
+                cmd.append(' '.join(script_cmd))
+            elif cmd[0] == 'ts':
+                cmd += script_cmd
+            else:
+                raise ValueError  # should never end up here
+
             subprocess.call(cmd)
+            if self.server is None:
+                os.chdir(current_dir)  # cd back
         rmtree(self.tmp_folder)
