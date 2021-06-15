@@ -4,6 +4,7 @@ import os
 import subprocess
 from typing import Union, Optional, Tuple
 from shutil import rmtree
+from collections import defaultdict
 
 __VERSION__ = '0.1.0'
 __all__ = ['Launcher']
@@ -14,6 +15,10 @@ class Hyperparameter:
         self.name = name
         self.value = value
         self.tunable = tunable
+
+
+def _spawn_set():
+    return set()
 
 
 class Launcher:
@@ -94,6 +99,7 @@ class Launcher:
         self.server = 0 if server is None else server
         self.tmp_root = '/tmp/messenger-tmp' if experiment_root is None else experiment_root
         self.interpreter = 'python' if interpreter is None else interpreter
+        self._skips = defaultdict(_spawn_set)
 
     def set_tunable(self, hyperparameter: str):
         """
@@ -134,6 +140,16 @@ class Launcher:
         for k, v in config.items():
             self.add_hyperparameters(k, v)
 
+    def skip_for(self, name, value):
+        self._skips[name].add(value)
+
+    def _skip_this(self, config):
+        for k, v in config.items():
+            if k in self._skips:
+                if v in self._skips[k]:
+                    return True
+        return False
+
     def generate_configs(self):
         """
         Generates a matrix of configurations.
@@ -173,6 +189,9 @@ class Launcher:
         """
         all_configs = self.generate_configs()
         for config_name, config in all_configs.items():
+            if self._skip_this(config):
+                continue
+
             if not config_name:
                 config_name = 'default'
 
