@@ -2,7 +2,7 @@ import random
 import string
 import os
 import subprocess
-from typing import Union, Optional, Tuple
+from typing import Union, Optional, Tuple, Any, List
 from shutil import rmtree
 from collections import defaultdict
 
@@ -60,6 +60,7 @@ class Launcher:
         Default: `None`.
 
     """
+
     def __init__(self,
                  name: str,
                  configurable: str,
@@ -101,7 +102,7 @@ class Launcher:
         self.interpreter = 'python' if interpreter is None else interpreter
         self._skips = defaultdict(_spawn_set)
 
-    def set_tunable(self, hyperparameter: str):
+    def set_tunable(self, hyperparameter: str) -> None:
         """
         Sets a hyperparameter as tunable.
         One can read all hyperparameters from a config file,
@@ -112,7 +113,7 @@ class Launcher:
         """
         self.__hyperparameters[hyperparameter].tunable = True
 
-    def add_hyperparameters(self, name: str, value, tunable=False):
+    def add_hyperparameters(self, name: str, value, tunable=False) -> None:
         """
         Adds a hyperparameter.
 
@@ -130,7 +131,7 @@ class Launcher:
             assert isinstance(value, (list, tuple))
         self.__hyperparameters[name] = Hyperparameter(name, value, tunable)
 
-    def hyperparameters_from_config(self, config: dict):
+    def hyperparameters_from_config(self, config: dict) -> None:
         """
         Reads hyperparameters from a config dictionary.
 
@@ -140,8 +141,11 @@ class Launcher:
         for k, v in config.items():
             self.add_hyperparameters(k, v)
 
-    def skip_for(self, name, value):
-        self._skips[name].add(value)
+    def skip_for(self, name: str, value: Union[Tuple[Any, ...], Any]) -> None:
+        if not isinstance(value, (list, tuple)):
+            value = [value]
+        for v in value:
+            self._skips[name].add(v)
 
     def _skip_this(self, config):
         for k, v in config.items():
@@ -150,7 +154,7 @@ class Launcher:
                     return True
         return False
 
-    def generate_configs(self):
+    def generate_configs(self) -> dict:
         """
         Generates a matrix of configurations.
         """
@@ -180,12 +184,14 @@ class Launcher:
 
         return _generate(0, '')
 
-    def launch(self, script: str, extra_args=None):
+    def launch(self, script: str, extra_args: List[str] = None) -> None:
         """
         Launches the script based on the given hyperparameters.
 
         :param script:
             name of the script to launch
+        :param extra_args:
+            extra arguments to be passed to script.
         """
         all_configs = self.generate_configs()
         for config_name, config in all_configs.items():
