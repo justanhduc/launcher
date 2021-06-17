@@ -231,7 +231,7 @@ class Launcher:
             if not config_name:
                 config_name = 'default'
 
-            config_filename = f'{config_name}.gin'
+            config_filename = f'{self.name}-{config_name}.gin'
             config_file = os.path.join(self.tmp_folder, config_filename)
             headers = [
                 f'{self.configurable}.name = "{self.name}" \n',
