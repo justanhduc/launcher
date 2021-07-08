@@ -214,6 +214,12 @@ class Launcher:
 
         return tmpdir
 
+    @staticmethod
+    def _standardize_folder_name(name: str):
+        for char in '/> |:&':
+            name = name.replace(char, '%')
+        return name
+
     def launch(self, script: str, extra_args: List[str] = None) -> None:
         """
         Launches the script based on the given hyperparameters.
@@ -231,6 +237,7 @@ class Launcher:
             if not config_name:
                 config_name = 'default'
 
+            config_name = self._standardize_folder_name(config_name)
             config_filename = f'{self.name}-{config_name}.gin'
             config_file = os.path.join(self.tmp_folder, config_filename)
             headers = [
