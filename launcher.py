@@ -63,7 +63,6 @@ class Launcher:
 
     def __init__(self,
                  name: str,
-                 configurable: str,
                  sync: Optional[Union[Tuple[str, ...], str]] = None,
                  ignores: Optional[Union[Tuple[str, ...], str]] = None,
                  server: int = None,
@@ -84,7 +83,6 @@ class Launcher:
                 ignores = [ignores]
 
         self.name = name
-        self.configurable = configurable
         self.sync = sync
         self.ignores = list(ignores)
         self.num_gpus = num_gpus
@@ -144,6 +142,22 @@ class Launcher:
         if tunable:
             assert isinstance(value, (list, tuple))
         self.__hyperparameters[name] = Hyperparameter(name, value, tunable)
+
+    def load_config(self, config_file):
+        raise NotImplementedError
+
+    def save_config(self, config_name, config):
+        """
+        The config file should be written in the tmp folder.
+        For e.g., `config_file = os.path.join(self.tmp_folder, f'{config_name}.txt')`
+        The function should return config_file.
+
+        :param config_name:
+        :param config:
+        :return:
+            path to config file.
+        """
+        raise NotImplementedError
 
     def hyperparameters_from_config(self, config: dict) -> None:
         """
@@ -238,23 +252,8 @@ class Launcher:
                 config_name = 'default'
 
             config_name = self._standardize_folder_name(config_name)
-            config_filename = f'{self.name}-{config_name}.gin'
-            config_file = os.path.join(self.tmp_folder, config_filename)
-            headers = [
-                f'{self.configurable}.name = "{self.name}" \n',
-                f'{self.configurable}.experiment = "{config_name}" \n'
-            ]
-            contents = []
-            for k, v in config.items():
-                if isinstance(v, str):
-                    contents.append(f'{self.configurable}.{k} = "{v}" \n')
-                else:
-                    contents.append(f'{self.configurable}.{k} = {v} \n')
-
-            with open(config_file, 'w') as f:
-                f.writelines(headers)
-                f.writelines(contents)
-                f.close()
+            config_file = self.save_config(config_name, config)
+            config_filename = os.path.basename(config_file)
 
             to_sync = list(self.sync)
             to_sync.append(config_file)
@@ -293,3 +292,39 @@ class Launcher:
             if self.server is None:
                 os.chdir(current_dir)  # cd back
         rmtree(self.tmp_folder)
+
+
+class GinLauncher(Launcher):
+    def __init__(self,
+                 name: str,
+                 configurable: str,
+                 sync: Optional[Union[Tuple[str, ...], str]] = None,
+                 ignores: Optional[Union[Tuple[str, ...], str]] = None,
+                 server: int = None,
+                 num_gpus: int = 0,
+                 tmp_configs_folder: str = None,
+                 experiment_root: str = None,
+                 interpreter: str = None):
+        super().__init__(name, sync, ignores, server, num_gpus, tmp_configs_folder, experiment_root, interpreter)
+        self.configurable = configurable
+
+    def save_config(self, config_name, config):
+        config_filename = f'{self.name}-{config_name}.gin'
+        config_file = os.path.join(self.tmp_folder, config_filename)
+        headers = [
+            f'{self.configurable}.name = "{self.name}" \n',
+            f'{self.configurable}.experiment = "{config_name}" \n'
+        ]
+        contents = []
+        for k, v in config.items():
+            if isinstance(v, str):
+                contents.append(f'{self.configurable}.{k} = "{v}" \n')
+            else:
+                contents.append(f'{self.configurable}.{k} = {v} \n')
+
+        with open(config_file, 'w') as f:
+            f.writelines(headers)
+            f.writelines(contents)
+            f.close()
+
+        return config_file
