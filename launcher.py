@@ -234,6 +234,50 @@ class Launcher:
             name = name.replace(char, '%')
         return name
 
+    def launch_no_config(self, script: str, extra_args: List[str] = None) -> None:
+        """
+        Launches the script without config file.
+
+        :param script:
+            name of the script to launch
+        :param extra_args:
+            extra arguments to be passed to script.
+        :return:
+        """
+        to_sync = list(self.sync)
+        config_name = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+        tmpdir = os.path.join(self.tmp_root, config_name)
+        print(f'Launching from {tmpdir}...')
+        if self.server is None:  # work locally
+            working_dir = self._sync(to_sync, tmpdir)
+            cmd = ['ts']
+            current_dir = os.getcwd()
+            os.chdir(working_dir)  # cd here to launch ts inside
+        else:
+            to_sync = ':'.join(to_sync)
+            cmd = ['ms', '-H', str(self.server), '--sync', to_sync]
+            if self.ignores:
+                exclude = ':'.join(self.ignores)
+                exclude = ['--exclude', f'{exclude}']
+                cmd.extend(exclude)
+            cmd += ['--sync_dest', tmpdir]
+
+        if self.num_gpus:
+            cmd += ['-G', f'{self.num_gpus}']
+
+        script_cmd = [self.interpreter, script]
+        if extra_args is not None:
+            script_cmd += list(extra_args)
+
+        if cmd[0] == 'ms':
+            cmd.append(' '.join(script_cmd))
+        elif cmd[0] == 'ts':
+            cmd += script_cmd
+        else:
+            raise ValueError  # should never end up here
+
+        subprocess.call(cmd)
+
     def launch(self, script: str, extra_args: List[str] = None) -> None:
         """
         Launches the script based on the given hyperparameters.
